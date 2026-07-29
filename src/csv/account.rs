@@ -68,33 +68,29 @@ mod tests {
         Amount::try_new(Decimal::from_str_exact(value).unwrap()).unwrap()
     }
 
-    fn deposit(client: ClientId, tx: TxId, amount: Amount) -> Transaction {
-        Transaction {
-            client,
-            tx,
-            action: TransactionAction::Movement(Movement::Deposit(amount)),
-        }
-    }
-
-    fn withdrawal(client: ClientId, tx: TxId, amount: Amount) -> Transaction {
-        Transaction {
-            client,
-            tx,
-            action: TransactionAction::Movement(Movement::Withdrawal(amount)),
-        }
-    }
-
     #[test]
     fn writes_one_row_per_account() {
         let mut ledger = Ledger::default();
         ledger
-            .apply(deposit(ClientId::new(1), TxId::new(1), amount("1.5")))
+            .apply(Transaction {
+                client: ClientId::new(1),
+                tx: TxId::new(1),
+                action: TransactionAction::Movement(Movement::Deposit(amount("1.5"))),
+            })
             .unwrap();
         ledger
-            .apply(withdrawal(ClientId::new(1), TxId::new(2), amount("0.5")))
+            .apply(Transaction {
+                client: ClientId::new(1),
+                tx: TxId::new(2),
+                action: TransactionAction::Movement(Movement::Withdrawal(amount("0.5"))),
+            })
             .unwrap();
         ledger
-            .apply(deposit(ClientId::new(2), TxId::new(3), amount("2.0")))
+            .apply(Transaction {
+                client: ClientId::new(2),
+                tx: TxId::new(3),
+                action: TransactionAction::Movement(Movement::Deposit(amount("2.0"))),
+            })
             .unwrap();
 
         let mut buffer = Vec::new();
@@ -113,7 +109,13 @@ mod tests {
         let mut ledger = Ledger::default();
         let client = ClientId::new(1);
         let tx = TxId::new(1);
-        ledger.apply(deposit(client, tx, amount("5.0"))).unwrap();
+        ledger
+            .apply(Transaction {
+                client,
+                tx,
+                action: TransactionAction::Movement(Movement::Deposit(amount("5.0"))),
+            })
+            .unwrap();
         ledger
             .apply(Transaction {
                 client,

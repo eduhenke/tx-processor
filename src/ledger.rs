@@ -171,30 +171,6 @@ mod tests {
     use super::*;
     use crate::types::Amount;
 
-    fn deposit(client: ClientId, tx: TxId, amount: Amount) -> Transaction {
-        Transaction {
-            client,
-            tx,
-            action: TransactionAction::Movement(Movement::Deposit(amount)),
-        }
-    }
-
-    fn withdrawal(client: ClientId, tx: TxId, amount: Amount) -> Transaction {
-        Transaction {
-            client,
-            tx,
-            action: TransactionAction::Movement(Movement::Withdrawal(amount)),
-        }
-    }
-
-    fn dispute(client: ClientId, tx: TxId) -> Transaction {
-        Transaction {
-            client,
-            tx,
-            action: TransactionAction::DisputeAction(DisputeAction::Dispute),
-        }
-    }
-
     /// A withdrawal that fails (here, for insufficient funds) must not
     /// leave any trace in the ledger's transaction history. Before `apply`
     /// was made atomic, the history record was written before the account
@@ -206,17 +182,23 @@ mod tests {
         let client = ClientId::new(1);
         let tx = TxId::new(1);
 
-        let result = ledger.apply(withdrawal(
+        let result = ledger.apply(Transaction {
             client,
             tx,
-            Amount::try_new(Decimal::from_str_exact("10.0").unwrap()).unwrap(),
-        ));
+            action: TransactionAction::Movement(Movement::Withdrawal(
+                Amount::try_new(Decimal::from_str_exact("10.0").unwrap()).unwrap(),
+            )),
+        });
         assert_eq!(
             result,
             Err(LedgerError::Account(AccountError::InsufficientFunds))
         );
 
-        let result = ledger.apply(dispute(client, tx));
+        let result = ledger.apply(Transaction {
+            client,
+            tx,
+            action: TransactionAction::DisputeAction(DisputeAction::Dispute),
+        });
         assert_eq!(result, Err(LedgerError::UnknownTransaction(tx)));
     }
 
@@ -230,12 +212,26 @@ mod tests {
         let withdrawal_tx = TxId::new(2);
         let amount = Amount::try_new(Decimal::from_str_exact("10.0").unwrap()).unwrap();
 
-        ledger.apply(deposit(client, deposit_tx, amount)).unwrap();
         ledger
-            .apply(withdrawal(client, withdrawal_tx, amount))
+            .apply(Transaction {
+                client,
+                tx: deposit_tx,
+                action: TransactionAction::Movement(Movement::Deposit(amount)),
+            })
+            .unwrap();
+        ledger
+            .apply(Transaction {
+                client,
+                tx: withdrawal_tx,
+                action: TransactionAction::Movement(Movement::Withdrawal(amount)),
+            })
             .unwrap();
 
-        let result = ledger.apply(dispute(client, withdrawal_tx));
+        let result = ledger.apply(Transaction {
+            client,
+            tx: withdrawal_tx,
+            action: TransactionAction::DisputeAction(DisputeAction::Dispute),
+        });
         assert_eq!(
             result,
             Err(LedgerError::WithdrawalNotDisputable(withdrawal_tx))
